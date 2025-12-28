@@ -17,6 +17,8 @@ import { MockInterview } from "@/utils/schema.js";
 import { v4 as uuidv4 } from "uuid";
 import { useUser } from "@clerk/nextjs";
 import moment from "moment";
+import { useRouter } from "next/navigation.js";
+
 
 function AddNewInterview() {
   const [openDialog, setOpenDialog] = useState(false);
@@ -25,6 +27,7 @@ function AddNewInterview() {
   const [jobExperience, setJobExperience] = useState();
 
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const [jsonResponse, setJsonResponse] = useState([]);
   const { user } = useUser();
@@ -34,13 +37,13 @@ function AddNewInterview() {
     e.preventDefault();
     console.log(jobPosition, jobExperience, jobDescription);
 
-    // const InputPrompt = `Job Position: ${jobPosition}, Job Description/Tech Stack: ${jobDescription}, Years of Experience: ${jobExperience}, Depending on this information generate 5 interview question and answer in JSON format, Give question and answer as field in JSON.`
+    const InputPrompt = `Job Position: ${jobPosition}, Job Description/Tech Stack: ${jobDescription}, Years of Experience: ${jobExperience}, Depending on this information generate 5 interview question and answer in JSON format, Give question and answer as field in JSON.`
 
-    const InputPrompt = `Write 1 to 5 number. Give answer as field in JSON`;
+    // const InputPrompt = `Write 1 to 5 number. Give answer as field in JSON`;
 
     const result = await generateAIResponseStream(InputPrompt);
     const mockJSONResponse = result.replace("```json", "").replace("```", "");
-    console.log(mockJSONResponse);
+    // console.log(mockJSONResponse);
     console.log(JSON.parse(mockJSONResponse));
     setJsonResponse(mockJSONResponse);
 
@@ -59,6 +62,10 @@ function AddNewInterview() {
         .returning({ mockId: MockInterview.mockId });
 
       console.log("Inserted ID:", resp[0].mockId);
+      if(resp){
+        setOpenDialog(false);
+        router.push('/dashboard/interview/'+resp[0]?.mockId)
+      }
     } else {
       console.log("Error");
     }
