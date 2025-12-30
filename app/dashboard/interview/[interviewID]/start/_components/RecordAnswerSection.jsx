@@ -4,11 +4,20 @@ import Image from "next/image";
 import React, { use, useEffect, useState } from "react";
 import Webcam from "react-webcam";
 import useSpeechToText from 'react-hook-speech-to-text';
-import { Mic } from "lucide-react";
+import { Mic, StopCircle } from "lucide-react";
+import { toast } from "sonner";
+import generateAIResponseStream from "../../../../../../utils/GeminiAIModal.js";
+import { useUser } from "@clerk/nextjs";
+import { db } from "@/utils/db";
+import { UserAnswer } from "@/utils/schema";
+import moment from "moment/moment.js";
 
-function RecordAnswerSection() {
+
+function RecordAnswerSection({mockInterviewQuestion, activeQuestionInd, interviewData}) {
 
   const [userAnswer, setUserAnswer] = useState('');
+  const {user} = useUser();
+  const [loading, setLoading] = useState(false);
 
   const {
     error,
@@ -28,6 +37,54 @@ function RecordAnswerSection() {
     })
   }, [results])
 
+
+  const SaveUserAnswer=async()=>{
+    if(isRecording){
+
+      setLoading(true);
+      stopSpeechToText();
+
+      if(userAnswer?.length < 10){
+        setLoading(false);
+        toast('Error while saving your answer, please record again')
+        return;
+      }
+
+      console.log('hllo world');
+      console.log(mockInterviewQuestion[activeQuestionInd]?.question);
+
+      const feedbackPrompt = "Question:"+mockInterviewQuestion[activeQuestionInd]?.question+",User Answer"+userAnswer+",Depends on question and user answer for given interview question "+
+      "please give us rating and feedback as area of improvement if any "+"in just 3-5 lines in JSON format with rating field and feedback field. Give your response as JSON format only";
+
+      const result = await generateAIResponseStream(feedbackPrompt);
+
+      const mockJSONResponse = result.replace("```json", "").replace("```", "");
+      console.log(mockJSONResponse);
+
+      const JsonFeedbackResp = JSON.parse(mockJSONResponse);
+
+      const resp = await db.insert(UserAnswer)
+      .values({
+        mockIdRef: interviewData?.mockId,
+        question: mockInterviewQuestion[activeQuestionInd]?.question,
+        correctAns: mockInterviewQuestion[activeQuestionInd]?.answer,
+        userAnswer: userAnswer,
+        feedback: JsonFeedbackResp,
+        rating: JsonFeedbackResp?.rating,
+        userEmail: user?.primaryEmailAddress?.emailAddress,
+        createdAt: moment().format('DD-MM-YYYY'),
+      })
+
+      if(resp){
+        toast('user answer recorded sucessfully');
+      }
+      setUserAnswer('');
+      setLoading(false);
+
+    }else{
+      startSpeechToText()
+    }
+  }
   if (error) return <p>Web Speech API is not available in this browser 🤷‍</p>;
 
   return (
@@ -49,11 +106,13 @@ function RecordAnswerSection() {
           }}
         />
       </div>
-      <Button variant="outline" className="my-10 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white " onClick={isRecording? stopSpeechToText: startSpeechToText}>
+      <Button 
+      disabled={loading}
+      variant="outline" className="my-10 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white " onClick={SaveUserAnswer}>
         {isRecording?
         
         <h2 className="text-red-600 flex gap-2">
-          <Mic />Stop Recording....
+          <StopCircle />Stop Recording....
         </h2>
         :
         'Record Answer'}
