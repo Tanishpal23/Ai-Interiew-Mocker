@@ -19,7 +19,6 @@ import { useUser } from "@clerk/nextjs";
 import moment from "moment";
 import { useRouter } from "next/navigation.js";
 
-
 function AddNewInterview() {
   const [openDialog, setOpenDialog] = useState(false);
   const [jobPosition, setJobPosition] = useState();
@@ -82,7 +81,8 @@ function AddNewInterview() {
 
       <div>
         <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-          <DialogContent className={"max-w-xl"}>
+          <DialogContent className="max-w-xl bg-white shadow-lg">
+
             <DialogHeader>
               <DialogTitle className="font-bold text-2xl">
                 Tell us more about your job interview

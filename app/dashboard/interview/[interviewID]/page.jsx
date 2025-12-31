@@ -4,6 +4,7 @@ import { db } from "@/utils/db";
 import { MockInterview } from "@/utils/schema";
 import { eq } from "drizzle-orm";
 import { Lightbulb, WebcamIcon } from "lucide-react";
+import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import Webcam from "react-webcam";
 

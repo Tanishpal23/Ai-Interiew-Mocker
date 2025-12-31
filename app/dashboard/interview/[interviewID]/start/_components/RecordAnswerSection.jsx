@@ -26,6 +26,7 @@ function RecordAnswerSection({mockInterviewQuestion, activeQuestionInd, intervie
     results,
     startSpeechToText,
     stopSpeechToText,
+    setResults
   } = useSpeechToText({
     continuous: true,
     useLegacyResults: false
@@ -37,22 +38,28 @@ function RecordAnswerSection({mockInterviewQuestion, activeQuestionInd, intervie
     })
   }, [results])
 
+  useEffect(()=>{
+    if(!isRecording&&userAnswer.length>10){
+      UpdateUserAnswer();
+    }
+    
+  },[userAnswer])
 
-  const SaveUserAnswer=async()=>{
+  const StartStopRecording=async()=>{
     if(isRecording){
 
-      setLoading(true);
       stopSpeechToText();
 
-      if(userAnswer?.length < 10){
-        setLoading(false);
-        toast('Error while saving your answer, please record again')
-        return;
-      }
+    }else{
+      startSpeechToText()
+    }
+  }
+  if (error) return <p>Web Speech API is not available in this browser 🤷‍</p>;
 
+  const UpdateUserAnswer=async()=>{
       console.log('hllo world');
       console.log(mockInterviewQuestion[activeQuestionInd]?.question);
-
+      setLoading(true);
       const feedbackPrompt = "Question:"+mockInterviewQuestion[activeQuestionInd]?.question+",User Answer"+userAnswer+",Depends on question and user answer for given interview question "+
       "please give us rating and feedback as area of improvement if any "+"in just 3-5 lines in JSON format with rating field and feedback field. Give your response as JSON format only";
 
@@ -77,15 +84,13 @@ function RecordAnswerSection({mockInterviewQuestion, activeQuestionInd, intervie
 
       if(resp){
         toast('user answer recorded sucessfully');
+        setUserAnswer('');
+        setResults([]);
       }
-      setUserAnswer('');
+      setResults([]);
+      console.log(userAnswer);
       setLoading(false);
-
-    }else{
-      startSpeechToText()
-    }
   }
-  if (error) return <p>Web Speech API is not available in this browser 🤷‍</p>;
 
   return (
     <div className="flex items-center justify-center flex-col">
@@ -108,7 +113,7 @@ function RecordAnswerSection({mockInterviewQuestion, activeQuestionInd, intervie
       </div>
       <Button 
       disabled={loading}
-      variant="outline" className="my-10 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white " onClick={SaveUserAnswer}>
+      variant="outline" className="my-10 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white " onClick={StartStopRecording}>
         {isRecording?
         
         <h2 className="text-red-600 flex gap-2">
@@ -118,9 +123,7 @@ function RecordAnswerSection({mockInterviewQuestion, activeQuestionInd, intervie
         'Record Answer'}
       </Button>
 
-      <Button onClick={()=>console.log(userAnswer)}>
-        Show Answer
-      </Button>
+      
 
           
     </div>
