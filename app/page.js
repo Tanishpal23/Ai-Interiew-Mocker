@@ -12,7 +12,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6">
+    <div className="flex-1 flex flex-col items-center justify-center bg-gray-50 p-6">
       {/* Logo */}
       <div className="mb-8">
         <Image src="/logo.svg" width={100} height={100} alt="Logo" />
