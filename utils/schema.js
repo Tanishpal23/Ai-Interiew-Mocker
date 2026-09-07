@@ -24,3 +24,11 @@ export const UserAnswer=pgTable('userAnswer',{
   userEmail: varchar('userEmail'),
   createdAt: varchar('createdAt'),
 })
+
+export const UserAskedQuestion = pgTable('userAskedQuestion', {
+  id: serial('id').primaryKey(),
+  question: text('question').notNull(),
+  answer: text('answer').notNull(),
+  userEmail: varchar('userEmail').notNull(),
+  createdAt: varchar('createdAt'),
+})
