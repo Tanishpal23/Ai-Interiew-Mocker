@@ -25,6 +25,14 @@ import { useUser } from "@clerk/nextjs";
 import { desc, eq } from "drizzle-orm";
 import moment from "moment";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const categories = [
   {
@@ -140,6 +148,8 @@ const QuestionPage = () => {
   const [expandedCards, setExpandedCards] = useState({});
   const [openCategoryAnswer, setOpenCategoryAnswer] = useState({});
   const [deletingId, setDeletingId] = useState(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [questionToDelete, setQuestionToDelete] = useState(null);
   const menuRef = useRef(null);
 
   const toggleCategoryAnswer = (key) => {
@@ -224,16 +234,25 @@ const QuestionPage = () => {
     }
   };
 
-  // Delete question from DB
-  const handleDeleteQuestion = async (id, e) => {
+  // Open delete confirmation dialog
+  const openDeleteDialog = (item, e) => {
     e?.stopPropagation();
-    setDeletingId(id);
+    setQuestionToDelete(item);
+    setDeleteDialogOpen(true);
     setOpenMenuId(null);
+  };
+
+  // Confirm delete question from DB
+  const handleConfirmDelete = async () => {
+    if (!questionToDelete) return;
+    setDeletingId(questionToDelete.id);
 
     try {
-      await db.delete(UserAskedQuestion).where(eq(UserAskedQuestion.id, id));
-      setSavedQuestions((prev) => prev.filter((item) => item.id !== id));
+      await db.delete(UserAskedQuestion).where(eq(UserAskedQuestion.id, questionToDelete.id));
+      setSavedQuestions((prev) => prev.filter((item) => item.id !== questionToDelete.id));
       toast.success("Question deleted successfully!");
+      setDeleteDialogOpen(false);
+      setQuestionToDelete(null);
     } catch (error) {
       console.error("Error deleting question:", error);
       toast.error("Failed to delete question.");
@@ -399,15 +418,10 @@ const QuestionPage = () => {
                           <div className="absolute right-0 top-8 z-20 w-36 bg-white border border-gray-200 rounded-lg shadow-lg py-1 animate-in fade-in zoom-in-95">
                             <button
                               type="button"
-                              onClick={(e) => handleDeleteQuestion(item.id, e)}
-                              disabled={isDeleting}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors text-left"
+                              onClick={(e) => openDeleteDialog(item, e)}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50 transition-colors text-left cursor-pointer"
                             >
-                              {isDeleting ? (
-                                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3.5 w-3.5" />
-                              )}
+                              <Trash2 className="h-3.5 w-3.5" />
                               Delete Question
                             </button>
                           </div>
@@ -514,6 +528,55 @@ const QuestionPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-gray-900">
+              <Trash2 className="h-5 w-5 text-red-600" />
+              Delete Question?
+            </DialogTitle>
+            <DialogDescription className="text-sm text-gray-600 mt-2">
+              Are you sure you want to delete the question{" "}
+              <strong className="text-gray-900 font-semibold">
+                "{questionToDelete?.question}"
+              </strong>
+              ? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="flex gap-2 justify-end mt-4">
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={deletingId !== null}
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setQuestionToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={deletingId !== null}
+              className="bg-red-600 text-white hover:bg-red-700 flex items-center gap-2"
+              onClick={handleConfirmDelete}
+            >
+              {deletingId !== null ? (
+                <>
+                  <LoaderCircle className="h-4 w-4 animate-spin" /> Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" /> Delete
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
