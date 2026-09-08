@@ -3,7 +3,7 @@
 import { db } from "@/utils/db";
 import { MockInterview, UserAnswer } from "@/utils/schema";
 import { and, eq } from "drizzle-orm";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import QuestionsSection from "./_components/QuestionsSection";
 import RecordAnswerSection from "./_components/RecordAnswerSection";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,10 @@ import { useUser } from "@clerk/nextjs";
 import generateAIResponseStream from "@/utils/GeminiAIModal";
 import moment from "moment";
 import { toast } from "sonner";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, Timer, Clock } from "lucide-react";
+
+
+const TOTAL_TIME_SECONDS = 15 * 60; // 15 seconds for testing (Production: 15 * 60)
 
 const StartInterview = ({ params }) => {
   const resolvedParams = React.use(params);
@@ -28,9 +31,37 @@ const StartInterview = ({ params }) => {
   const [loading, setLoading] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
 
+  // 15-minute countdown timer (reverse from 15:00)
+  const [timeLeft, setTimeLeft] = useState(TOTAL_TIME_SECONDS);
+  const timerExpiredRef = useRef(false);
+
   useEffect(() => {
     getInterviewDetails();
   }, []);
+
+  // Countdown timer effect
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      if (!timerExpiredRef.current) {
+        timerExpiredRef.current = true;
+        toast.error("Time's up! Auto-submitting your interview...");
+        handleEndInterview();
+      }
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
 
   const getInterviewDetails = async () => {
     const result = await db
@@ -240,7 +271,35 @@ Example JSON:
   };
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto">
+    <div className="p-4 md:p-10 max-w-7xl mx-auto">
+      {/* Top Header with Interview Role & 15-Minute Reverse Timer in Top-Right Corner */}
+      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+        <div>
+          <h1 className="text-lg md:text-xl font-bold text-gray-800">
+            Mock Interview: <span className="text-blue-600">{interviewData?.jobPosition || "Candidate"}</span>
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Answer questions at your own pace. The interview will auto-submit when the timer reaches 00:00.
+          </p>
+        </div>
+
+        {/* Countdown Timer (Top-Right Corner) */}
+        <div
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full border text-sm font-semibold transition-all shadow-xs w-fit shrink-0 ${
+            timeLeft <= (TOTAL_TIME_SECONDS <= 60 ? 5 : 120)
+              ? "bg-red-50 text-red-600 border-red-300 animate-pulse"
+              : timeLeft <= (TOTAL_TIME_SECONDS <= 60 ? 10 : 300)
+              ? "bg-amber-50 text-amber-700 border-amber-300"
+              : "bg-blue-50 text-blue-700 border-blue-200"
+          }`}
+          title="Interview time remaining"
+        >
+          <Timer className={`w-4 h-4 ${timeLeft <= (TOTAL_TIME_SECONDS <= 60 ? 5 : 120) ? "text-red-600 animate-spin" : "text-blue-600"}`} />
+          <span className="font-mono text-base">{formatTime(timeLeft)}</span>
+          <span className="text-[11px] text-gray-500 font-normal">left</span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
         <QuestionsSection
           mockInterviewQuestion={mockInterviewQuestion}
