@@ -18,13 +18,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEffect, useState, useRef } from "react";
-import generateAIResponse from "@/utils/GeminiAIModal";
-import { db } from "@/utils/db";
-import { UserAskedQuestion } from "@/utils/schema";
 import { useUser } from "@clerk/nextjs";
-import { desc, eq } from "drizzle-orm";
-import moment from "moment";
 import { toast } from "sonner";
+import {
+  getUserAskedQuestionsAction,
+  askAndSaveQuestionAction,
+  deleteUserAskedQuestionAction,
+} from "@/actions/question";
 import {
   Dialog,
   DialogContent,
@@ -161,17 +161,10 @@ const QuestionPage = () => {
 
   // Fetch saved questions for current user
   const fetchUserQuestions = async () => {
-    if (!user?.primaryEmailAddress?.emailAddress) return;
     setFetchingSaved(true);
     try {
-      const result = await db
-        .select()
-        .from(UserAskedQuestion)
-        .where(
-          eq(UserAskedQuestion.userEmail, user.primaryEmailAddress.emailAddress)
-        )
-        .orderBy(desc(UserAskedQuestion.id));
-      setSavedQuestions(result || []);
+      const res = await getUserAskedQuestionsAction();
+      setSavedQuestions(res?.savedQuestions || []);
     } catch (error) {
       console.error("Error fetching user asked questions:", error);
     } finally {
@@ -196,35 +189,23 @@ const QuestionPage = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Generate answer & save to DB
+  // Generate answer & save to DB via Server Action
   const handleGenerateAndSave = async () => {
     if (!question.trim()) return;
     setLoading(true);
     setAnswer("");
 
     try {
-      const prompt = `You are an interview coach. Give a clear, concise model answer (3-5 lines) for this interview question: "${question}"`;
-      const result = await generateAIResponse(prompt);
-      const cleanAnswer = result.replace(/```json/gi, "").replace(/```/g, "").trim();
-      setAnswer(cleanAnswer);
+      const res = await askAndSaveQuestionAction(question);
 
-      const userEmail = user?.primaryEmailAddress?.emailAddress || "anonymous";
-      const createdAt = moment().format("DD-MM-YYYY, h:mm a");
-
-      // Save to Neon Database
-      const inserted = await db
-        .insert(UserAskedQuestion)
-        .values({
-          question: question.trim(),
-          answer: cleanAnswer,
-          userEmail: userEmail,
-          createdAt: createdAt,
-        })
-        .returning();
-
-      if (inserted && inserted.length > 0) {
-        setSavedQuestions((prev) => [inserted[0], ...prev]);
+      if (res?.success) {
+        setAnswer(res.answer);
+        if (res.savedQuestion) {
+          setSavedQuestions((prev) => [res.savedQuestion, ...prev]);
+        }
         toast.success("Question and answer saved!");
+      } else {
+        toast.error(res?.error || "Failed to generate answer. Please try again.");
       }
     } catch (error) {
       console.error("Error generating/saving question:", error);
@@ -242,17 +223,21 @@ const QuestionPage = () => {
     setOpenMenuId(null);
   };
 
-  // Confirm delete question from DB
+  // Confirm delete question from DB via Server Action
   const handleConfirmDelete = async () => {
     if (!questionToDelete) return;
     setDeletingId(questionToDelete.id);
 
     try {
-      await db.delete(UserAskedQuestion).where(eq(UserAskedQuestion.id, questionToDelete.id));
-      setSavedQuestions((prev) => prev.filter((item) => item.id !== questionToDelete.id));
-      toast.success("Question deleted successfully!");
-      setDeleteDialogOpen(false);
-      setQuestionToDelete(null);
+      const res = await deleteUserAskedQuestionAction(questionToDelete.id);
+      if (res?.success) {
+        setSavedQuestions((prev) => prev.filter((item) => item.id !== questionToDelete.id));
+        toast.success("Question deleted successfully!");
+        setDeleteDialogOpen(false);
+        setQuestionToDelete(null);
+      } else {
+        toast.error(res?.error || "Failed to delete question.");
+      }
     } catch (error) {
       console.error("Error deleting question:", error);
       toast.error("Failed to delete question.");

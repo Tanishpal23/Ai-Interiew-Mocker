@@ -6,6 +6,6 @@ export default defineConfig({
   out: "./drizzle",
 
   dbCredentials: {
-    url: process.env.NEXT_PUBLIC_DRIZZLE_DB_URL,
+    url: process.env.DRIZZLE_DB_URL || process.env.NEXT_PUBLIC_DRIZZLE_DB_URL,
   },
 });

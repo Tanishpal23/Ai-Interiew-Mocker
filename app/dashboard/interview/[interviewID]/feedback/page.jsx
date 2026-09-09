@@ -1,8 +1,5 @@
 "use client";
 
-import { db } from "@/utils/db";
-import { MockInterview, UserAnswer } from "@/utils/schema";
-import { eq } from "drizzle-orm";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Collapsible,
@@ -13,6 +10,7 @@ import { ChevronsUpDown, Download, Printer, Home, ArrowLeft } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { useParams, useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
+import { getFeedbackReportAction } from "@/actions/answer";
 
 const Feedback = () => {
   const [feedbackList, setFeedbackList] = useState([]);
@@ -27,24 +25,9 @@ const Feedback = () => {
 
   const GetFeedback = async () => {
     try {
-      const result = await db
-        .select()
-        .from(UserAnswer)
-        .where(eq(UserAnswer.mockIdRef, params.interviewID))
-        .orderBy(UserAnswer.id);
-
-      console.log("Feedback list loaded:", result);
-      setFeedbackList(result);
-
-      // Fetch interview details
-      const interviewRes = await db
-        .select()
-        .from(MockInterview)
-        .where(eq(MockInterview.mockId, params.interviewID));
-
-      if (interviewRes && interviewRes.length > 0) {
-        setInterviewInfo(interviewRes[0]);
-      }
+      const res = await getFeedbackReportAction(params.interviewID);
+      setFeedbackList(res?.feedbackList || []);
+      setInterviewInfo(res?.interviewInfo || null);
     } catch (error) {
       console.error("Error fetching feedback:", error);
     }

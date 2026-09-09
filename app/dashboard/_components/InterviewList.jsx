@@ -1,54 +1,28 @@
-"use client"
-import { db } from '@/utils/db';
-import { MockInterview, UserAnswer } from '@/utils/schema';
-import { useUser } from '@clerk/nextjs'
-import { desc, eq, inArray, or } from 'drizzle-orm';
-import React, { useEffect, useMemo, useState } from 'react'
+"use client";
+import { useUser } from '@clerk/nextjs';
+import React, { useEffect, useMemo, useState } from 'react';
 import InterviewItemCard from './InterviewItemCard';
 import { Award, Briefcase, CheckCircle2, Sparkles, TrendingUp } from 'lucide-react';
+import { getUserInterviewsAction } from '@/actions/interview';
 
 const InterviewList = () => {
-
-  const {user} = useUser();
+  const { user } = useUser();
   const [interviewList, setInterviewList] = useState([]);
   const [userAnswers, setUserAnswers] = useState([]);
 
-  useEffect(()=>{
+  useEffect(() => {
     user && GetInterviewList();
-  }, [user])
+  }, [user]);
 
-  const GetInterviewList=async()=>{
+  const GetInterviewList = async () => {
     try {
-      const result = await db.select()
-      .from(MockInterview)
-      .where(eq(MockInterview.createdBy, user?.primaryEmailAddress?.emailAddress))
-      .orderBy(desc(MockInterview.id));
-
-      setInterviewList(result || []);
-
-      const mockIds = (result || []).map(i => i.mockId).filter(Boolean);
-      let answers = [];
-
-      if (mockIds.length > 0) {
-        answers = await db.select()
-          .from(UserAnswer)
-          .where(
-            or(
-              eq(UserAnswer.userEmail, user?.primaryEmailAddress?.emailAddress),
-              inArray(UserAnswer.mockIdRef, mockIds)
-            )
-          );
-      } else {
-        answers = await db.select()
-          .from(UserAnswer)
-          .where(eq(UserAnswer.userEmail, user?.primaryEmailAddress?.emailAddress));
-      }
-
-      setUserAnswers(answers || []);
+      const res = await getUserInterviewsAction();
+      setInterviewList(res?.interviewList || []);
+      setUserAnswers(res?.userAnswers || []);
     } catch (err) {
       console.error("Error fetching dashboard interviews/analytics:", err);
     }
-  }
+  };
 
   // Calculate interview analytics
   const analytics = useMemo(() => {

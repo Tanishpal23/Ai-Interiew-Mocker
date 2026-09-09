@@ -1,12 +1,10 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { db } from "@/utils/db";
-import { MockInterview } from "@/utils/schema";
-import { eq } from "drizzle-orm";
 import { Lightbulb, WebcamIcon } from "lucide-react";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import Webcam from "react-webcam";
+import { getInterviewDetailsAction } from "@/actions/interview";
 
 function Interview({ params }) {
   const resolvedParams = React.use(params);
@@ -22,13 +20,8 @@ function Interview({ params }) {
   }, [interviewID]);
 
   const getInterviewDetails = async () => {
-    const result = await db
-      .select()
-      .from(MockInterview)
-      .where(eq(MockInterview.mockId, interviewID));
-
-    setInterviewData(result[0]);
-    console.log(result);
+    const res = await getInterviewDetailsAction(interviewID);
+    setInterviewData(res?.interviewData || null);
   };
   return (
     <div className="my-10">

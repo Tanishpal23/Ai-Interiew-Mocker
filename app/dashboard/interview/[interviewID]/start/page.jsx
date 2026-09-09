@@ -1,19 +1,18 @@
 "use client";
 
-import { db } from "@/utils/db";
-import { MockInterview, UserAnswer } from "@/utils/schema";
-import { and, eq } from "drizzle-orm";
 import React, { useEffect, useState, useRef } from "react";
 import QuestionsSection from "./_components/QuestionsSection";
 import RecordAnswerSection from "./_components/RecordAnswerSection";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import generateAIResponseStream from "@/utils/GeminiAIModal";
-import moment from "moment";
 import { toast } from "sonner";
 import { LoaderCircle, Timer, Clock } from "lucide-react";
-
+import { getInterviewDetailsAction } from "@/actions/interview";
+import {
+  getUserAnswerForQuestionAction,
+  saveAndEvaluateAnswerAction,
+} from "@/actions/answer";
 
 const TOTAL_TIME_SECONDS = 15 * 60; // 15 seconds for testing (Production: 15 * 60)
 
@@ -51,7 +50,7 @@ const StartInterview = ({ params }) => {
     }
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => Math.max(prev - 1, 0));
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     return () => clearInterval(timer);
@@ -64,22 +63,19 @@ const StartInterview = ({ params }) => {
   };
 
   const getInterviewDetails = async () => {
-    const result = await db
-      .select()
-      .from(MockInterview)
-      .where(eq(MockInterview.mockId, interviewID));
+    const res = await getInterviewDetailsAction(interviewID);
+    const data = res?.interviewData;
 
-    // ✅ SAFETY CHECK
-    if (!result || result.length === 0) {
+    if (!data) {
       console.error("No interview found for ID:", interviewID);
       return;
     }
 
     try {
       let parsed =
-        typeof result[0].jsonMockResp === "string"
-          ? JSON.parse(result[0].jsonMockResp)
-          : result[0].jsonMockResp;
+        typeof data.jsonMockResp === "string"
+          ? JSON.parse(data.jsonMockResp)
+          : data.jsonMockResp;
 
       if (!Array.isArray(parsed) && parsed && typeof parsed === "object") {
         const candidateArray =
@@ -99,7 +95,7 @@ const StartInterview = ({ params }) => {
       setMockInterviewQuestion([]);
     }
 
-    setInterviewData(result[0]);
+    setInterviewData(data);
   };
 
   const currentQuestion =
@@ -119,24 +115,12 @@ const StartInterview = ({ params }) => {
 
     const loadAnswer = async () => {
       try {
-        const existing = await db
-          .select()
-          .from(UserAnswer)
-          .where(
-            and(
-              eq(UserAnswer.mockIdRef, interviewData.mockId),
-              eq(UserAnswer.question, currentQuestion)
-            )
-          );
-
-        if (existing && existing.length > 0) {
-          const ans = existing[0].userAnswer || "";
-          setUserAnswer(ans === "answer unattempted" ? "" : ans);
-          setIsSaved(true);
-        } else {
-          setUserAnswer("");
-          setIsSaved(false);
-        }
+        const res = await getUserAnswerForQuestionAction(
+          interviewData.mockId,
+          currentQuestion
+        );
+        setUserAnswer(res?.answer || "");
+        setIsSaved(!!res?.isSaved);
       } catch (err) {
         console.error("Error fetching existing answer:", err);
       }
@@ -154,88 +138,22 @@ const StartInterview = ({ params }) => {
     try {
       setLoading(true);
 
-      let finalUserAnswer = trimmed;
-      let finalFeedback = "Question was not attempted.";
-      let finalRating = "0";
+      const res = await saveAndEvaluateAnswerAction({
+        mockId: interviewData.mockId,
+        question: currentQuestion,
+        correctAns: currentCorrectAns,
+        userAnswer: trimmed,
+      });
 
-      // If answer is empty or "answer unattempted"
-      if (!trimmed || trimmed.toLowerCase() === "answer unattempted") {
-        finalUserAnswer = "answer unattempted";
-        finalFeedback = "Question was not attempted.";
-        finalRating = "0";
-      } else {
-        // Candidate provided answer -> evaluate with Gemini AI
-        const feedbackPrompt = `Interview Question: "${currentQuestion}"
-Candidate Answer: "${trimmed}"
-Based on the question and candidate's answer, provide a rating (e.g. "7/10" or "8") and constructive feedback (3-5 lines covering areas of improvement and strengths) in JSON format with "rating" and "feedback" fields.
-Return ONLY valid JSON.
-Example JSON:
-{
-  "rating": "7/10",
-  "feedback": "Clear explanation. To improve, discuss state management and edge cases."
-}`;
-
-        try {
-          const aiRawResponse = await generateAIResponseStream(feedbackPrompt);
-          let cleaned = aiRawResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
-          const firstCurly = cleaned.indexOf("{");
-          const lastCurly = cleaned.lastIndexOf("}");
-          if (firstCurly !== -1 && lastCurly !== -1 && firstCurly < lastCurly) {
-            cleaned = cleaned.substring(firstCurly, lastCurly + 1);
-          }
-          const parsedFeedback = JSON.parse(cleaned);
-          finalRating = String(parsedFeedback?.rating ?? "7/10");
-          finalFeedback =
-            typeof parsedFeedback?.feedback === "object"
-              ? JSON.stringify(parsedFeedback.feedback)
-              : String(parsedFeedback?.feedback || "Answer recorded.");
-        } catch (err) {
-          console.warn("AI evaluation fallback:", err);
-          finalRating = "7/10";
-          finalFeedback = "Answer recorded successfully. Good effort!";
+      if (res?.success) {
+        setIsSaved(true);
+        if (res.isUnattempted) {
+          toast.info(`Question ${activeQuestionInd + 1} recorded as unattempted.`);
+        } else {
+          toast.success(`Question ${activeQuestionInd + 1} answer saved!`);
         }
-      }
-
-      // Check if already in DB
-      const existing = await db
-        .select()
-        .from(UserAnswer)
-        .where(
-          and(
-            eq(UserAnswer.mockIdRef, interviewData.mockId),
-            eq(UserAnswer.question, currentQuestion)
-          )
-        );
-
-      if (existing && existing.length > 0) {
-        await db
-          .update(UserAnswer)
-          .set({
-            userAnswer: finalUserAnswer,
-            correctAns: currentCorrectAns,
-            feedback: finalFeedback,
-            rating: finalRating,
-            createdAt: moment().format("DD-MM-YYYY"),
-          })
-          .where(eq(UserAnswer.id, existing[0].id));
       } else {
-        await db.insert(UserAnswer).values({
-          mockIdRef: interviewData.mockId,
-          question: currentQuestion,
-          correctAns: currentCorrectAns,
-          userAnswer: finalUserAnswer,
-          feedback: finalFeedback,
-          rating: finalRating,
-          userEmail: user?.primaryEmailAddress?.emailAddress || "anonymous",
-          createdAt: moment().format("DD-MM-YYYY"),
-        });
-      }
-
-      setIsSaved(true);
-      if (finalUserAnswer === "answer unattempted") {
-        toast.info(`Question ${activeQuestionInd + 1} recorded as unattempted.`);
-      } else {
-        toast.success(`Question ${activeQuestionInd + 1} answer saved!`);
+        toast.error(res?.error || "Failed to save answer.");
       }
     } catch (err) {
       console.error("Error saving answer to DB:", err);

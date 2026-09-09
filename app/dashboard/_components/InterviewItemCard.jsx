@@ -4,9 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { Trash2, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
-import { db } from "@/utils/db";
-import { MockInterview, UserAnswer } from "@/utils/schema";
-import { eq } from "drizzle-orm";
+import { deleteInterviewAction } from "@/actions/interview";
 import {
   Dialog,
   DialogContent,
@@ -32,21 +30,16 @@ const InterviewItemCard = ({ interview, refreshData }) => {
   const handleDelete = async () => {
     try {
       setLoading(true);
+      const res = await deleteInterviewAction(interview?.mockId);
 
-      // 1. Delete all user answers associated with this interview
-      await db
-        .delete(UserAnswer)
-        .where(eq(UserAnswer.mockIdRef, interview?.mockId));
-
-      // 2. Delete the mock interview itself
-      await db
-        .delete(MockInterview)
-        .where(eq(MockInterview.mockId, interview?.mockId));
-
-      toast.success("Interview deleted successfully!");
-      setOpenDialog(false);
-      if (refreshData) {
-        refreshData();
+      if (res?.success) {
+        toast.success("Interview deleted successfully!");
+        setOpenDialog(false);
+        if (refreshData) {
+          refreshData();
+        }
+      } else {
+        toast.error(res?.error || "Failed to delete interview. Please try again.");
       }
     } catch (error) {
       console.error("Error deleting interview:", error);

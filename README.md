@@ -141,11 +141,11 @@ CLERK_SECRET_KEY=your_clerk_secret_key
 NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
 NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 
-# Neon Serverless PostgreSQL Database URL
-NEXT_PUBLIC_DRIZZLE_DB_URL=postgresql://<user>:<password>@<endpoint>.neon.tech/<dbname>?sslmode=require
+# Neon Serverless PostgreSQL Database URL (Server-Only, Secure)
+DRIZZLE_DB_URL=postgresql://<user>:<password>@<endpoint>.neon.tech/<dbname>?sslmode=require
 
-# Google Gemini AI API Key
-NEXT_PUBLIC_GEMINI_API_KEY=your_google_gemini_api_key
+# Google Gemini AI API Key (Server-Only, Secure)
+GEMINI_API_KEY=your_google_gemini_api_key
 
 # Instructional Copy
 NEXT_PUBLIC_INFORMATION="Enable video web cam and microphone to start your AI Generated Mock Interview. It has 5 questions which you can answer and at last you will get the report on the basis of your answers."
